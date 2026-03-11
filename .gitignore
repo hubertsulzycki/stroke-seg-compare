@@ -1,0 +1,17 @@
+data/
+!data/.gitkeep
+
+venv/
+env/
+.env/
+
+__pycache__/
+*.pyc
+*.pyo
+
+*.pt
+*.pth
+*.ckpt
+
+
+.vscode/

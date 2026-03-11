@@ -1,0 +1,20 @@
+# Deep Learning
+torch>=2.0.0
+torchvision
+torchaudio
+monai
+
+# Data Manipulation & Metrics
+numpy
+pandas
+scikit-learn
+
+# Image Processing
+Pillow
+imageio
+
+# Utilities
+pyyaml
+tqdm
+matplotlib
+tensorboard
