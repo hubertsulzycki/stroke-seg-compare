@@ -29,7 +29,7 @@ class Trainer:
     def train(self):
         for epoch in range(self.num_epochs):
             self.model.train()
-            train_loss = 0
+            train_loss = 0.0
 
             for batch in self.train_loader:
                 inputs = batch["image"].to(self.device)
@@ -59,7 +59,10 @@ class Trainer:
 
                     self.model.eval()
 
-            print(f"--- Epoch: {epoch} ---")
-            print(f"Training loss : {train_loss / len(self.train_loader)}")
-            print(f"Validation loss: {val_loss / len(self.val_loader)}")
+            avg_train_loss = train_loss / len(self.train_loader)
+            avg_val_loss = val_loss / len(self.val_loader)
+
+            print(f"--- Epoch: {epoch+1}/{self.num_epochs} ---")
+            print(f"Training loss : {avg_train_loss}")
+            print(f"Validation loss: {avg_val_loss}")
             print("----------------------")
