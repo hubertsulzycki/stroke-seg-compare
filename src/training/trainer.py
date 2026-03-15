@@ -1,6 +1,11 @@
+import time
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from pathlib import Path
+
+SAVE_DIR = Path(__file__).resolve().parents[0] / "trained_models"
+SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class Trainer:
@@ -16,7 +21,9 @@ class Trainer:
         optimizer: torch.optim.Optimizer,
         criterion: nn.Module,
         device: str,
+        best_model_filename: str,
         num_epochs: int = 50,
+        training_logs: bool = False,
     ):
         self.model = model
         self.train_loader = train_loader
@@ -24,14 +31,24 @@ class Trainer:
         self.optimizer = optimizer
         self.criterion = criterion
         self.device = device
+        self.best_model_filename = best_model_filename
         self.num_epochs = num_epochs
+        self.best_val_loss = float("inf")
+        self.training_logs = training_logs
 
     def train(self):
         for epoch in range(self.num_epochs):
+            if self.training_logs:
+                print(f"-- Epoch: {epoch + 1}/{self.num_epochs} --")
+            start_time = time.time()
+
             self.model.train()
             train_loss = 0.0
 
-            for batch in self.train_loader:
+            for i, batch in enumerate(self.train_loader):
+                if self.training_logs:
+                    batch_start_time = time.time()
+
                 inputs = batch["image"].to(self.device)
                 targets = batch["label"].float().to(self.device)
 
@@ -43,12 +60,22 @@ class Trainer:
                 self.optimizer.step()
                 train_loss += loss.item()
 
-                self.model.eval()
+                if self.training_logs:
+                    batch_end_time = time.time()
+                    batch_duration = batch_end_time - batch_start_time
+                    print(
+                        f"Training batch {i}/{len(self.train_loader)}: {int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
+                    )
+
+            self.model.eval()
+            val_loss = 0
 
             with torch.no_grad():
-                val_loss = 0
 
                 for batch in self.val_loader:
+                    if self.training_logs:
+                        batch_start_time = time.time()
+
                     inputs = batch["image"].to(self.device)
                     targets = batch["label"].float().to(self.device)
 
@@ -57,12 +84,29 @@ class Trainer:
                     loss = self.criterion(outputs, targets)
                     val_loss += loss.item()
 
-                    self.model.eval()
+                    if self.training_logs:
+                        batch_end_time = time.time()
+                        batch_duration = batch_end_time - batch_start_time
+                        print(
+                            f"Validation batch {i}/{len(self.train_loader)}: {int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
+                        )
+
+            end_time = time.time()
+            epoch_duration = end_time - start_time
+            epoch_mins, epoch_secs = divmod(epoch_duration, 60)
 
             avg_train_loss = train_loss / len(self.train_loader)
             avg_val_loss = val_loss / len(self.val_loader)
 
-            print(f"--- Epoch: {epoch+1}/{self.num_epochs} ---")
-            print(f"Training loss : {avg_train_loss}")
-            print(f"Validation loss: {avg_val_loss}")
+            print(f"----------- Epoch: {epoch + 1}/{self.num_epochs} -----------")
+            print(f"Time            : {int(epoch_mins)}m {int(epoch_secs)}s")
+            print(f"Training Loss   : {avg_train_loss:.4f}")
+            print(f"Validation Loss : {avg_val_loss:.4f}")
+
+            if avg_val_loss < self.best_val_loss:
+                self.best_val_loss = avg_val_loss
+                best_model_path = SAVE_DIR / self.best_model_filename
+                torch.save(self.model.state_dict(), best_model_path)
+                print("Best model saved!")
+
             print("----------------------")

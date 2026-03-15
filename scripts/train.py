@@ -3,6 +3,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
+import datetime
 
 from src.data.dataset import StrokeDataset
 from src.models.unet_2d import UNet2D
@@ -46,16 +47,31 @@ def main():
     val_dataset = StrokeDataset(str(data_dir), val_patients, mode=MODE)
 
     # --- DATALOADERS INITIALIZATION ---
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=0,
+        pin_memory=True,
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=True,
+    )
 
     # --- MODEL INITIALIZATION ---
     if MODE == "2d":
         model = UNet2D(in_channels=1).to(device)
+        best_model_filename = "unet_2d.pth"
     elif MODE == "2.5d":
         model = UNet2D(in_channels=3).to(device)
+        best_model_filename = "unet_2.5d.pth"
     elif MODE == "3d":
         model = UNet3D(num_res_units=0).to(device)
+        best_model_filename = "unet_3d.pth"
     else:
         raise ValueError("Invalid mode!")
 
@@ -64,7 +80,7 @@ def main():
     optimizer = optim.Adam(params=model.parameters(), lr=LEARNING_RATE)
 
     # --- TRAINING EXECUTION ---
-    print("\nStarting Training Engine...")
+    print(f"\nStarting Training Engine: {datetime.datetime.now().time()}")
     trainer = Trainer(
         model=model,
         train_loader=train_loader,
@@ -72,7 +88,9 @@ def main():
         optimizer=optimizer,
         criterion=criterion,
         device=device,
+        best_model_filename=best_model_filename,
         num_epochs=NUM_EPOCHS,
+        training_logs=True,
     )
 
     trainer.train()
