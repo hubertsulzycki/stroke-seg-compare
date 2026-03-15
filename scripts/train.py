@@ -18,12 +18,14 @@ def main():
     # --- MAIN CONFIGURATION ---
     MODE = "2d"  # Availbe mods: '2d', '2.5d', '3d'
     BATCH_SIZE = (
-        4 if MODE != "3d" else 1
+        8 if MODE != "3d" else 1
     )  # 3D needs batch size 1 due to VRAM limitations
     LEARNING_RATE = 1e-4
     NUM_EPOCHS = 5
+    NUM_WORKERS = 0
 
     # --- DEVICE CONFIGURATION ---
+    torch.backends.cudnn.benchmark = True
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device.upper()} for {MODE.upper()} training.")
 
@@ -51,14 +53,14 @@ def main():
         train_dataset,
         batch_size=BATCH_SIZE,
         shuffle=True,
-        num_workers=0,
+        num_workers=NUM_WORKERS,
         pin_memory=True,
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=BATCH_SIZE,
         shuffle=False,
-        num_workers=0,
+        num_workers=NUM_WORKERS,
         pin_memory=True,
     )
 
@@ -74,6 +76,8 @@ def main():
         best_model_filename = "unet_3d.pth"
     else:
         raise ValueError("Invalid mode!")
+
+    model = torch.compile(model)
 
     # --- LOSS AND OPTIMIZER INITIALIZATION ---
     criterion = CombinedLoss()

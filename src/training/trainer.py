@@ -35,11 +35,13 @@ class Trainer:
         self.num_epochs = num_epochs
         self.best_val_loss = float("inf")
         self.training_logs = training_logs
+        self.scaler = torch.amp.GradScaler(self.device)
 
     def train(self):
         for epoch in range(self.num_epochs):
             if self.training_logs:
                 print(f"-- Epoch: {epoch + 1}/{self.num_epochs} --")
+
             start_time = time.time()
 
             self.model.train()
@@ -49,22 +51,26 @@ class Trainer:
                 if self.training_logs:
                     batch_start_time = time.time()
 
-                inputs = batch["image"].to(self.device)
-                targets = batch["label"].float().to(self.device)
+                inputs = batch["image"].to(self.device, non_blocking=True)
+                targets = batch["label"].float().to(self.device, non_blocking=True)
 
-                self.optimizer.zero_grad()
-                outputs = self.model(inputs)
+                self.optimizer.zero_grad(set_to_none=True)
 
-                loss = self.criterion(outputs, targets)
-                loss.backward()
-                self.optimizer.step()
+                with torch.autocast(device_type=self.device, dtype=torch.float16):
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, targets)
+
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+
                 train_loss += loss.item()
 
                 if self.training_logs:
                     batch_end_time = time.time()
                     batch_duration = batch_end_time - batch_start_time
                     print(
-                        f"Training batch {i}/{len(self.train_loader)}: {int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
+                        f"Training batch {i+1}/{len(self.train_loader)}: {int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
                     )
 
             self.model.eval()
@@ -72,23 +78,24 @@ class Trainer:
 
             with torch.no_grad():
 
-                for batch in self.val_loader:
+                for i, batch in enumerate(self.val_loader):
                     if self.training_logs:
                         batch_start_time = time.time()
 
-                    inputs = batch["image"].to(self.device)
-                    targets = batch["label"].float().to(self.device)
+                    inputs = batch["image"].to(self.device, non_blocking=True)
+                    targets = batch["label"].float().to(self.device, non_blocking=True)
 
-                    outputs = self.model(inputs)
+                    with torch.autocast(device_type=self.device, dtype=torch.float16):
+                        outputs = self.model(inputs)
+                        loss = self.criterion(outputs, targets)
 
-                    loss = self.criterion(outputs, targets)
                     val_loss += loss.item()
 
                     if self.training_logs:
                         batch_end_time = time.time()
                         batch_duration = batch_end_time - batch_start_time
                         print(
-                            f"Validation batch {i}/{len(self.train_loader)}: {int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
+                            f"Validation batch {i+1}/{len(self.train_loader)}: {int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
                         )
 
             end_time = time.time()
