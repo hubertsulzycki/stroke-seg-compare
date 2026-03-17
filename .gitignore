@@ -16,3 +16,4 @@ structure.txt
 
 /backup
 trained_models/
+logs/

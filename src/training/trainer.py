@@ -4,7 +4,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from pathlib import Path
 
-SAVE_DIR = Path(__file__).resolve().parents[0] / "trained_models"
+# Poprawka: parents[2] odnosi się do głownego folderu projektu.
+SAVE_DIR = Path(__file__).resolve().parents[2] / "trained_models"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -23,6 +24,7 @@ class Trainer:
         device: str,
         best_model_filename: str,
         num_epochs: int = 50,
+        config: dict = None,
         training_logs: bool = False,
     ):
         self.model = model
@@ -37,10 +39,31 @@ class Trainer:
         self.training_logs = training_logs
         self.scaler = torch.amp.GradScaler(self.device)
 
+        # --- LOGGING SETUP ---
+        self.log_filename = best_model_filename.replace(".pth", ".txt")
+        self.log_filepath = SAVE_DIR / self.log_filename
+
+        # Initial header in the log file
+        self._log("=" * 32)
+        self._log("--- STARTING TRAINING ENGINE ---")
+        self._log("=" * 32)
+
+        if config:
+            self._log("--- HYPERPARAMETERS ---")
+            for key, value in config.items():
+                self._log(f"{key}: {value}")
+            self._log("=" * 32 + "\n")
+
+    def _log(self, message: str):
+        """Prints a message to the console and appends it to the log file."""
+        print(message)
+        with open(self.log_filepath, "a", encoding="utf-8") as f:
+            f.write(message + "\n")
+
     def train(self):
         for epoch in range(self.num_epochs):
             if self.training_logs:
-                print(f"-- Epoch: {epoch + 1}/{self.num_epochs} --")
+                self._log(f"-- Epoch: {epoch + 1}/{self.num_epochs} --")
 
             start_time = time.time()
 
@@ -69,15 +92,15 @@ class Trainer:
                 if self.training_logs:
                     batch_end_time = time.time()
                     batch_duration = batch_end_time - batch_start_time
-                    print(
-                        f"Training batch {i+1}/{len(self.train_loader)}: {int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
+                    self._log(
+                        f"Training batch {i+1}/{len(self.train_loader)}: "
+                        f"{int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
                     )
 
             self.model.eval()
             val_loss = 0
 
             with torch.no_grad():
-
                 for i, batch in enumerate(self.val_loader):
                     if self.training_logs:
                         batch_start_time = time.time()
@@ -94,8 +117,9 @@ class Trainer:
                     if self.training_logs:
                         batch_end_time = time.time()
                         batch_duration = batch_end_time - batch_start_time
-                        print(
-                            f"Validation batch {i+1}/{len(self.train_loader)}: {int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
+                        self._log(
+                            f"Validation batch {i+1}/{len(self.val_loader)}: "
+                            f"{int(batch_duration//60)}m {int(batch_duration%60)}s {int((batch_duration*1000)%1000)}ms"
                         )
 
             end_time = time.time()
@@ -105,15 +129,17 @@ class Trainer:
             avg_train_loss = train_loss / len(self.train_loader)
             avg_val_loss = val_loss / len(self.val_loader)
 
-            print(f"----------- Epoch: {epoch + 1}/{self.num_epochs} -----------")
-            print(f"Time            : {int(epoch_mins)}m {int(epoch_secs)}s")
-            print(f"Training Loss   : {avg_train_loss:.4f}")
-            print(f"Validation Loss : {avg_val_loss:.4f}")
+            self._log(f"----- Epoch: {epoch + 1}/{self.num_epochs} ------")
+            self._log(f"Time            : {int(epoch_mins)}m {int(epoch_secs)}s")
+            self._log(f"Training Loss   : {avg_train_loss:.4f}")
+            self._log(f"Validation Loss : {avg_val_loss:.4f}")
 
             if avg_val_loss < self.best_val_loss:
                 self.best_val_loss = avg_val_loss
                 best_model_path = SAVE_DIR / self.best_model_filename
                 torch.save(self.model.state_dict(), best_model_path)
-                print("Best model saved!")
+                self._log("Best model saved!")
 
-            print("----------------------")
+            self._log("------------------------")
+
+        self._log("Training Completed Successfully!")
