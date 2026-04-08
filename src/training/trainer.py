@@ -1,6 +1,7 @@
 import time
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from pathlib import Path
 
@@ -77,6 +78,14 @@ class Trainer:
                 inputs = batch["image"].to(self.device, non_blocking=True)
                 targets = batch["label"].float().to(self.device, non_blocking=True)
 
+                if len(inputs.shape) == 5:  # Check if it's 3D tensor
+                    B, C, D, H, W = inputs.shape
+                    pad_d = (16 - (D % 16)) % 16
+                    if pad_d > 0:
+                        # In case that depth of the tensor is not divisible by 16 dummy slices are added
+                        inputs = F.pad(inputs, (0, 0, 0, 0, 0, pad_d))
+                        targets = F.pad(targets, (0, 0, 0, 0, 0, pad_d))
+
                 self.optimizer.zero_grad(set_to_none=True)
 
                 with torch.autocast(device_type=self.device, dtype=torch.float16):
@@ -107,6 +116,14 @@ class Trainer:
 
                     inputs = batch["image"].to(self.device, non_blocking=True)
                     targets = batch["label"].float().to(self.device, non_blocking=True)
+
+                    if len(inputs.shape) == 5:  # Check if it's 3D tensor
+                        B, C, D, H, W = inputs.shape
+                        pad_d = (16 - (D % 16)) % 16
+                        if pad_d > 0:
+                            # In case that depth of the tensor is not divisible by 16 dummy slices are added
+                            inputs = F.pad(inputs, (0, 0, 0, 0, 0, pad_d))
+                            targets = F.pad(targets, (0, 0, 0, 0, 0, pad_d))
 
                     with torch.autocast(device_type=self.device, dtype=torch.float16):
                         outputs = self.model(inputs)

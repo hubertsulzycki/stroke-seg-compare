@@ -20,7 +20,7 @@ def main():
     BATCH_SIZE = 8 if MODE != "3d" else 1
     LEARNING_RATE = 1e-4
     NUM_EPOCHS = 50
-    NUM_WORKERS = 0
+    NUM_WORKERS = 4
 
     # --- DEVICE CONFIGURATION ---
     torch.backends.cudnn.benchmark = True
@@ -71,7 +71,8 @@ def main():
     else:
         raise ValueError("Invalid mode!")
 
-    model = torch.compile(model)
+    if MODE != "3d":
+        model = torch.compile(model)
 
     # --- LOSS AND OPTIMIZER INITIALIZATION ---
     criterion = CombinedLoss()
@@ -106,7 +107,7 @@ def main():
         best_model_filename=best_model_filename,
         num_epochs=NUM_EPOCHS,
         config=experiment_config,
-        training_logs=True,
+        training_logs=False,
     )
 
     trainer.train()
