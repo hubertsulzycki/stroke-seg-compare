@@ -22,6 +22,7 @@ class Trainer:
         val_loader: DataLoader,
         optimizer: torch.optim.Optimizer,
         criterion: nn.Module,
+        scheduler: torch.optim.lr_scheduler._LRScheduler,
         device: str,
         best_model_filename: str,
         num_epochs: int = 50,
@@ -33,6 +34,7 @@ class Trainer:
         self.val_loader = val_loader
         self.optimizer = optimizer
         self.criterion = criterion
+        self.scheduler = scheduler
         self.device = device
         self.best_model_filename = best_model_filename
         self.num_epochs = num_epochs
@@ -146,8 +148,11 @@ class Trainer:
             avg_train_loss = train_loss / len(self.train_loader)
             avg_val_loss = val_loss / len(self.val_loader)
 
+            current_lr = self.optimizer.param_groups[0]["lr"]
+
             self._log(f"----- Epoch: {epoch + 1}/{self.num_epochs} ------")
             self._log(f"Time            : {int(epoch_mins)}m {int(epoch_secs)}s")
+            self._log(f"Learning Rate   : {current_lr:.6f}")
             self._log(f"Training Loss   : {avg_train_loss:.4f}")
             self._log(f"Validation Loss : {avg_val_loss:.4f}")
 
@@ -156,6 +161,8 @@ class Trainer:
                 best_model_path = SAVE_DIR / self.best_model_filename
                 torch.save(self.model.state_dict(), best_model_path)
                 self._log("Best model saved!")
+
+            self.scheduler.step(avg_train_loss)
 
             self._log("------------------------")
 

@@ -109,11 +109,8 @@ class StrokeDataset(Dataset):
 
         if self.mode == "2d":
             # Load image and mask
-            img = (
-                np.array(
-                    Image.open(sample_info["img_path"]).convert("L"), dtype=np.float32
-                )
-                / 255.0
+            img = np.array(
+                Image.open(sample_info["img_path"]).convert("L"), dtype=np.float32
             )
             mask = np.array(
                 Image.open(sample_info["mask_path"]).convert("L"), dtype=np.uint8
@@ -144,26 +141,17 @@ class StrokeDataset(Dataset):
 
         elif self.mode == "2.5d":
             # Load 3 adjacent slices and mask
-            img_prev = (
-                np.array(
-                    Image.open(sample_info["img_path_prev"]).convert("L"),
-                    dtype=np.float32,
-                )
-                / 255.0
+            img_prev = np.array(
+                Image.open(sample_info["img_path_prev"]).convert("L"),
+                dtype=np.float32,
             )
-            img_curr = (
-                np.array(
-                    Image.open(sample_info["img_path_curr"]).convert("L"),
-                    dtype=np.float32,
-                )
-                / 255.0
+            img_curr = np.array(
+                Image.open(sample_info["img_path_curr"]).convert("L"),
+                dtype=np.float32,
             )
-            img_next = (
-                np.array(
-                    Image.open(sample_info["img_path_next"]).convert("L"),
-                    dtype=np.float32,
-                )
-                / 255.0
+            img_next = np.array(
+                Image.open(sample_info["img_path_next"]).convert("L"),
+                dtype=np.float32,
             )
             mask = np.array(
                 Image.open(sample_info["mask_path"]).convert("L"), dtype=np.uint8
@@ -205,10 +193,7 @@ class StrokeDataset(Dataset):
                 img_path = patient_img_path / slice_name
                 mask_path = patient_mask_path / slice_name
 
-                img = (
-                    np.array(Image.open(img_path).convert("L"), dtype=np.float32)
-                    / 255.0
-                )
+                img = np.array(Image.open(img_path).convert("L"), dtype=np.float32)
                 mask = np.array(Image.open(mask_path).convert("L"), dtype=np.uint8)
                 mask = self._map_mask(mask)
 
