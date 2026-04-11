@@ -21,8 +21,8 @@ def log_message(message: str, filepath: Path):
 def main():
     print(PROJECT_ROOT)
     # --- MAIN CONFIGURATION ---
-    MODE = "2.5d"
-    MODEL_FILENAME = "unet_2.5d_16_03_2026_18_55.pth"
+    MODE = "3d"
+    MODEL_FILENAME = "unet_3d_20_03_2026_18_25.pth"
     BATCH_SIZE = 1
     NUM_WORKERS = 0
 
@@ -69,7 +69,8 @@ def main():
         raise ValueError("Invalid mode!")
 
     # Load weights and compile
-    model = torch.compile(model)
+    if MODE != "3d":
+        model = torch.compile(model)
     model.load_state_dict(torch.load(model_dir / MODEL_FILENAME, weights_only=True))
 
     # --- EVALUATION ENGINE ---

@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 from monai.metrics import DiceMetric
+import torch.nn.functional as F
+
+import numpy as np
+from scipy.ndimage import label
 
 
 class Evaluator:
@@ -51,7 +55,35 @@ class Evaluator:
         """
         Takes a 3D volume and processes it directly through a 3D model.
         """
-        pass
+        B, C, D, H, W = volume.shape
+        pad_d = (16 - (D % 16)) % 16
+        if pad_d > 0:
+            volume = F.pad(volume, (0, 0, 0, 0, 0, pad_d))
+
+        pred_volume = self.model(volume)
+
+        return pred_volume[:, :, :D, :, :]
+
+    def _apply_cca_filtering(
+        self, binary_mask: torch.Tensor, min_size: int = 100
+    ) -> torch.Tensor:
+        """
+        Removes isolated noise components smaller than min_size from the binary mask.
+        """
+        mask_np = binary_mask.cpu().numpy().astype(bool)
+        labeled_mask, num_features = label(mask_np)
+
+        if num_features == 0:
+            return binary_mask
+
+        component_sizes = np.bincount(labeled_mask.ravel())
+
+        valid_components = component_sizes >= min_size
+        valid_components[0] = False
+
+        filtered_mask_np = valid_components[labeled_mask]
+
+        return torch.from_numpy(filtered_mask_np).float().to(self.device)
 
     def evaluate_patient(
         self, volume: torch.Tensor, ground_truth: torch.Tensor
@@ -77,6 +109,7 @@ class Evaluator:
 
             # 2. Threshold probabilities to create a binary mask (0.0 or 1.0)
             binary_mask = (probs > 0.5).float()
+            binary_mask = self._apply_cca_filtering(binary_mask, min_size=100)
 
             # 3. Calculate Dice Score using MONAI metric
             self.dice_metric(y_pred=binary_mask, y=ground_truth)

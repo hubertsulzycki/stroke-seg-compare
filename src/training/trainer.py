@@ -162,7 +162,7 @@ class Trainer:
                 torch.save(self.model.state_dict(), best_model_path)
                 self._log("Best model saved!")
 
-            self.scheduler.step(avg_train_loss)
+            self.scheduler.step(avg_val_loss)
 
             self._log("------------------------")
 

@@ -4,6 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import datetime
+import monai.transforms as mt
 
 from src.data.dataset import StrokeDataset
 from src.models.unet_2d import UNet2D
@@ -20,7 +21,7 @@ def main():
     BATCH_SIZE = 8 if MODE != "3d" else 1
     LEARNING_RATE = 1e-4
     NUM_EPOCHS = 50
-    NUM_WORKERS = 4
+    NUM_WORKERS = 0 if MODE != "3d" else 4
 
     # --- DEVICE CONFIGURATION ---
     torch.backends.cudnn.benchmark = True
@@ -41,9 +42,40 @@ def main():
     train_patients = splits["train"]
     val_patients = splits["val"]
 
+    # --- TRANSORMS CONFIGURATION ---
+    if MODE == "3d":
+        rotation_params = {"range_z": 0.26}
+    else:
+        rotation_params = {"range_x": 0.26}
+
+    train_transforms = mt.Compose(
+        [
+            mt.NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
+            mt.RandFlipd(keys=["image", "label"], spatial_axis=0, prob=0.5),
+            mt.RandRotated(
+                keys=["image", "label"],
+                prob=0.5,
+                keep_size=True,
+                mode=["bilinear", "nearest"],
+                **rotation_params,
+            ),
+            mt.RandGaussianNoised(keys=["image"], prob=0.2, mean=0.0, std=0.05),
+        ]
+    )
+
+    val_transforms = mt.Compose(
+        [
+            mt.NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
+        ]
+    )
+
     # --- DATASETS INITIALIZATION ---
-    train_dataset = StrokeDataset(str(data_dir), train_patients, mode=MODE)
-    val_dataset = StrokeDataset(str(data_dir), val_patients, mode=MODE)
+    train_dataset = StrokeDataset(
+        str(data_dir), train_patients, mode=MODE, transform=train_transforms
+    )
+    val_dataset = StrokeDataset(
+        str(data_dir), val_patients, mode=MODE, transform=val_transforms
+    )
 
     # --- DATALOADERS INITIALIZATION ---
     train_loader = DataLoader(
@@ -78,6 +110,11 @@ def main():
     criterion = CombinedLoss()
     optimizer = optim.Adam(params=model.parameters(), lr=LEARNING_RATE)
 
+    # --- SCHEUDLER INITIALIZATION ---
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=5
+    )
+
     # --- EXPERIMENT CONFIGURATION (For Logging) ---
     experiment_config = {
         "MODE": MODE,
@@ -89,6 +126,7 @@ def main():
         "COMPILED": True,
         "AUTOMATIC MIXED PRECISION": True,
         "OPTIMIZER": optimizer.__class__.__name__,
+        "SCHEDULER": scheduler.__class__.__name__,
         "LOSS": criterion.__class__.__name__,
         "TRAIN_PATIENTS": len(train_patients),
         "VAL_PATIENTS": len(val_patients),
@@ -103,6 +141,7 @@ def main():
         val_loader=val_loader,
         optimizer=optimizer,
         criterion=criterion,
+        scheduler=scheduler,
         device=device,
         best_model_filename=best_model_filename,
         num_epochs=NUM_EPOCHS,
