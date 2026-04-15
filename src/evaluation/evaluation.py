@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
+import monai.transforms as mt
 
 from src.data.dataset import StrokeDataset
 from src.models.unet_2d import UNet2D
@@ -22,9 +23,10 @@ def main():
     print(PROJECT_ROOT)
     # --- MAIN CONFIGURATION ---
     MODE = "3d"
-    MODEL_FILENAME = "unet_3d_20_03_2026_18_25.pth"
+    MODEL_FILENAME = "unet_3d_14_04_2026_16_44.pth"
     BATCH_SIZE = 1
-    NUM_WORKERS = 0
+    NUM_WORKERS = 8
+    COMPILATION = True
 
     # --- DEVICE CONFIGURATION ---
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -45,8 +47,15 @@ def main():
     test_patients = splits["test"]
 
     # --- DATASETS INITIALIZATION ---
+    test_transforms = mt.Compose(
+        [
+            mt.ScaleIntensityRanged(
+                keys=["image"], a_min=0.0, a_max=255.0, b_min=0.0, b_max=1.0, clip=True
+            ),
+        ]
+    )
     test_dataset = StrokeDataset(
-        str(data_dir), test_patients, mode="3d"
+        str(data_dir), test_patients, mode="3d", transform=test_transforms
     )  # 3D is always required to ensure fair comparission between models
 
     # --- DATALOADERS INITIALIZATION ---
@@ -69,7 +78,7 @@ def main():
         raise ValueError("Invalid mode!")
 
     # Load weights and compile
-    if MODE != "3d":
+    if COMPILATION and MODE != "3d":
         model = torch.compile(model)
     model.load_state_dict(torch.load(model_dir / MODEL_FILENAME, weights_only=True))
 

@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from pathlib import Path
 
-# Poprawka: parents[2] odnosi się do głownego folderu projektu.
 SAVE_DIR = Path(__file__).resolve().parents[2] / "trained_models"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -25,6 +24,7 @@ class Trainer:
         scheduler: torch.optim.lr_scheduler._LRScheduler,
         device: str,
         best_model_filename: str,
+        accumulation_steps: int = 1,
         num_epochs: int = 50,
         config: dict = None,
         training_logs: bool = False,
@@ -33,6 +33,7 @@ class Trainer:
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.optimizer = optimizer
+        self.accumulation_steps = accumulation_steps
         self.criterion = criterion
         self.scheduler = scheduler
         self.device = device
@@ -73,6 +74,8 @@ class Trainer:
             self.model.train()
             train_loss = 0.0
 
+            self.optimizer.zero_grad(set_to_none=True)
+
             for i, batch in enumerate(self.train_loader):
                 if self.training_logs:
                     batch_start_time = time.time()
@@ -80,25 +83,22 @@ class Trainer:
                 inputs = batch["image"].to(self.device, non_blocking=True)
                 targets = batch["label"].float().to(self.device, non_blocking=True)
 
-                if len(inputs.shape) == 5:  # Check if it's 3D tensor
-                    B, C, D, H, W = inputs.shape
-                    pad_d = (16 - (D % 16)) % 16
-                    if pad_d > 0:
-                        # In case that depth of the tensor is not divisible by 16 dummy slices are added
-                        inputs = F.pad(inputs, (0, 0, 0, 0, 0, pad_d))
-                        targets = F.pad(targets, (0, 0, 0, 0, 0, pad_d))
-
-                self.optimizer.zero_grad(set_to_none=True)
-
                 with torch.autocast(device_type=self.device, dtype=torch.float16):
                     outputs = self.model(inputs)
                     loss = self.criterion(outputs, targets)
 
-                self.scaler.scale(loss).backward()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+                unscaled_loss = loss.item()
+                loss = loss / self.accumulation_steps
 
-                train_loss += loss.item()
+                self.scaler.scale(loss).backward()
+                if ((i + 1) % self.accumulation_steps == 0) or (
+                    (i + 1) == len(self.train_loader)
+                ):
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                    self.optimizer.zero_grad(set_to_none=True)
+
+                train_loss += unscaled_loss
 
                 if self.training_logs:
                     batch_end_time = time.time()
@@ -118,14 +118,6 @@ class Trainer:
 
                     inputs = batch["image"].to(self.device, non_blocking=True)
                     targets = batch["label"].float().to(self.device, non_blocking=True)
-
-                    if len(inputs.shape) == 5:  # Check if it's 3D tensor
-                        B, C, D, H, W = inputs.shape
-                        pad_d = (16 - (D % 16)) % 16
-                        if pad_d > 0:
-                            # In case that depth of the tensor is not divisible by 16 dummy slices are added
-                            inputs = F.pad(inputs, (0, 0, 0, 0, 0, pad_d))
-                            targets = F.pad(targets, (0, 0, 0, 0, 0, pad_d))
 
                     with torch.autocast(device_type=self.device, dtype=torch.float16):
                         outputs = self.model(inputs)

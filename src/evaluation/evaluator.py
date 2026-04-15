@@ -55,22 +55,21 @@ class Evaluator:
         """
         Takes a 3D volume and processes it directly through a 3D model.
         """
-        B, C, D, H, W = volume.shape
-        pad_d = (16 - (D % 16)) % 16
-        if pad_d > 0:
-            volume = F.pad(volume, (0, 0, 0, 0, 0, pad_d))
-
         pred_volume = self.model(volume)
 
-        return pred_volume[:, :, :D, :, :]
+        return pred_volume
 
     def _apply_cca_filtering(
         self, binary_mask: torch.Tensor, min_size: int = 100
     ) -> torch.Tensor:
         """
         Removes isolated noise components smaller than min_size from the binary mask.
+        Operates on spatial dimensions only to ensure correct 3D connectivity.
         """
-        mask_np = binary_mask.cpu().numpy().astype(bool)
+        original_shape = binary_mask.shape
+
+        # Squeeze batch and channel dimensions to get a pure (D, H, W) spatial array
+        mask_np = binary_mask.squeeze().cpu().numpy().astype(bool)
         labeled_mask, num_features = label(mask_np)
 
         if num_features == 0:
@@ -83,7 +82,11 @@ class Evaluator:
 
         filtered_mask_np = valid_components[labeled_mask]
 
-        return torch.from_numpy(filtered_mask_np).float().to(self.device)
+        # Convert back to tensor and restore the original (B, C, D, H, W) shape
+        filtered_tensor = torch.from_numpy(filtered_mask_np).float().to(self.device)
+        filtered_tensor = filtered_tensor.view(original_shape)
+
+        return filtered_tensor
 
     def evaluate_patient(
         self, volume: torch.Tensor, ground_truth: torch.Tensor

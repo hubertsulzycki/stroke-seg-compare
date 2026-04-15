@@ -1,6 +1,7 @@
-import numpy as np
 import torch
 import torch.nn as nn
+
+LAYERS = [32, 64, 128, 256, 512]
 
 
 class DoubleConv(nn.Module):
@@ -67,37 +68,37 @@ class UNet2D(nn.Module):
         super().__init__()
 
         # Encoder part of 2D UNet model.
-        # Slices transformations: (1,512,512) -> (64,512,512) -> (128, 256, 256) -> (256, 128, 128) -> (512, 64, 64)
-        self.inc = DoubleConv(in_channels=in_channels, out_channels=64)
+        # Slices transformations: (1,512,512) -> (LAYERS[0],512,512) -> (LAYERS[1], 256, 256) -> (LAYERS[2], 128, 128) -> (LAYERS[3], 64, 64)
+        self.inc = DoubleConv(in_channels=in_channels, out_channels=LAYERS[0])
 
         self.down1 = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2),
-            DoubleConv(in_channels=64, out_channels=128),
+            DoubleConv(in_channels=LAYERS[0], out_channels=LAYERS[1]),
         )
         self.down2 = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2),
-            DoubleConv(in_channels=128, out_channels=256),
+            DoubleConv(in_channels=LAYERS[1], out_channels=LAYERS[2]),
         )
         self.down3 = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2),
-            DoubleConv(in_channels=256, out_channels=512),
+            DoubleConv(in_channels=LAYERS[2], out_channels=LAYERS[3]),
         )
 
         # Bottleneck part of 2D UNet model
-        # Final transformation to (1024, 32, 32)
+        # Final transformation to (LAYERS[4], 32, 32)
         self.bottleneck = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2),
-            DoubleConv(in_channels=512, out_channels=1024),
+            DoubleConv(in_channels=LAYERS[3], out_channels=LAYERS[4]),
         )
 
         # Decoder part of 2DUnet model.
         # Transforming slices back up to (1,512,512) with help of the skip connections
-        self.up1 = Up(1024, 512)
-        self.up2 = Up(512, 256)
-        self.up3 = Up(256, 128)
-        self.up4 = Up(128, 64)
+        self.up1 = Up(LAYERS[4], LAYERS[3])
+        self.up2 = Up(LAYERS[3], LAYERS[2])
+        self.up3 = Up(LAYERS[2], LAYERS[1])
+        self.up4 = Up(LAYERS[1], LAYERS[0])
 
-        self.outc = nn.Conv2d(in_channels=64, out_channels=1, kernel_size=1)
+        self.outc = nn.Conv2d(in_channels=LAYERS[0], out_channels=1, kernel_size=1)
 
     def forward(self, x):
         x1 = self.inc(x)

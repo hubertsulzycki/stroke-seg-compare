@@ -18,13 +18,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def main():
     # --- MAIN CONFIGURATION ---
     MODE = "3d"  # Available modes: '2d', '2.5d', '3d'
-    BATCH_SIZE = 8 if MODE != "3d" else 1
+    BATCH_SIZE = 16 if MODE != "3d" else 1
     LEARNING_RATE = 1e-4
-    NUM_EPOCHS = 50
-    NUM_WORKERS = 0 if MODE != "3d" else 4
+    NUM_EPOCHS = 40
+    NUM_WORKERS = 8
+    COMPILATION = True
+    ACCUMULATION_STEPS = 4 if MODE == "3d" else 1
 
     # --- DEVICE CONFIGURATION ---
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = MODE != "3d"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # --- TIMESTAMP & FILENAMES ---
@@ -43,29 +45,28 @@ def main():
     val_patients = splits["val"]
 
     # --- TRANSORMS CONFIGURATION ---
-    if MODE == "3d":
-        rotation_params = {"range_z": 0.26}
-    else:
-        rotation_params = {"range_x": 0.26}
-
     train_transforms = mt.Compose(
         [
-            mt.NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
-            mt.RandFlipd(keys=["image", "label"], spatial_axis=0, prob=0.5),
+            mt.ScaleIntensityRanged(
+                keys=["image"], a_min=0.0, a_max=255.0, b_min=0.0, b_max=1.0, clip=True
+            ),
+            mt.RandFlipd(keys=["image", "label"], spatial_axis=-1, prob=0.5),
             mt.RandRotated(
                 keys=["image", "label"],
                 prob=0.5,
                 keep_size=True,
                 mode=["bilinear", "nearest"],
-                **rotation_params,
+                padding_mode=["zeros", "zeros"],
+                range_x=0.26,
             ),
-            mt.RandGaussianNoised(keys=["image"], prob=0.2, mean=0.0, std=0.05),
         ]
     )
 
     val_transforms = mt.Compose(
         [
-            mt.NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
+            mt.ScaleIntensityRanged(
+                keys=["image"], a_min=0.0, a_max=255.0, b_min=0.0, b_max=1.0, clip=True
+            ),
         ]
     )
 
@@ -84,6 +85,8 @@ def main():
         shuffle=True,
         num_workers=NUM_WORKERS,
         pin_memory=True,
+        persistent_workers=True,
+        prefetch_factor=2,
     )
     val_loader = DataLoader(
         val_dataset,
@@ -91,6 +94,8 @@ def main():
         shuffle=False,
         num_workers=NUM_WORKERS,
         pin_memory=True,
+        persistent_workers=True,
+        prefetch_factor=2,
     )
 
     # --- MODEL INITIALIZATION ---
@@ -103,7 +108,7 @@ def main():
     else:
         raise ValueError("Invalid mode!")
 
-    if MODE != "3d":
+    if COMPILATION and MODE != "3d":
         model = torch.compile(model)
 
     # --- LOSS AND OPTIMIZER INITIALIZATION ---
@@ -123,9 +128,10 @@ def main():
         "NUM_EPOCHS": NUM_EPOCHS,
         "NUM_WORKERS": NUM_WORKERS,
         "DEVICE": device,
-        "COMPILED": True,
+        "COMPILED": COMPILATION and MODE != "3d",
         "AUTOMATIC MIXED PRECISION": True,
         "OPTIMIZER": optimizer.__class__.__name__,
+        "ACCUMULATION_STEPS": ACCUMULATION_STEPS,
         "SCHEDULER": scheduler.__class__.__name__,
         "LOSS": criterion.__class__.__name__,
         "TRAIN_PATIENTS": len(train_patients),

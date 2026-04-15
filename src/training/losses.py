@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from monai.losses import DiceLoss
 from monai.losses import TverskyLoss
 
 
@@ -11,17 +10,15 @@ class CombinedLoss(nn.Module):
 
     1. BCEWithLogitsLoss: Evaluates pixel-wise classification error.
     2. DiceLoss: Evaluates the spatial overlap between the predicted mask and the ground truth - not used anymore
-    3. TverskyLoss
+    3. TverskyLoss: By setting alpha=0.3 (False Positive weight) and beta=0.7 (False Negative weight), it heavily penalizes missed stroke lesions, encouraging the model to make bolder predictions on underrepresented classes.
     """
 
     def __init__(self):
         super().__init__()
         self.bce = nn.BCEWithLogitsLoss()
-        self.dice = DiceLoss(sigmoid=True, squared_pred=True)
-        self.tversky = TverskyLoss(sigmoid=True, alpha=0.3, beta=0.7)
+        self.tversky = TverskyLoss(sigmoid=True, alpha=0.2, beta=0.8)
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         bce_loss = self.bce(logits, targets)
-        dice_loss = self.dice(logits, targets)
-
-        return bce_loss + dice_loss
+        tversky_loss = self.tversky(logits, targets)
+        return bce_loss + tversky_loss
