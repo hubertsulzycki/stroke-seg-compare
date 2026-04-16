@@ -92,26 +92,32 @@ class Evaluator:
         self, volume: torch.Tensor, ground_truth: torch.Tensor
     ) -> float:
         """
-        Public method to evaluate a single patient's volume.
+        Public method to evaluate a single patient's volume, using Test-Time Augmentation.
+        The final probalities are average values from prediction on base and mirrored slice.
         """
         volume = volume.to(self.device)
         ground_truth = ground_truth.to(self.device)
+        mirror_volume = torch.flip(volume, dims=[-1])
 
         self.model.eval()
 
         with torch.no_grad():
             if self.mode in ["2d", "2.5d"]:
                 predictions = self._predict_2d_volume(volume)
+                mirror_predictions = self._predict_2d_volume(mirror_volume)
             elif self.mode == "3d":
                 predictions = self._predict_3d_volume(volume)
+                mirror_predictions = self._predict_3d_volume(mirror_volume)
             else:
                 raise ValueError(f"Unknown mode: {self.mode}")
 
             # 1. Convert logits to probabilities using Sigmoid
-            probs = torch.sigmoid(predictions)
+            normal_probs = torch.sigmoid(predictions)
+            mirror_probs = torch.sigmoid(torch.flip(mirror_predictions, dims=[-1]))
+            final_probs = (normal_probs + mirror_probs) / 2
 
             # 2. Threshold probabilities to create a binary mask (0.0 or 1.0)
-            binary_mask = (probs > 0.5).float()
+            binary_mask = (final_probs > 0.5).float()
             binary_mask = self._apply_cca_filtering(binary_mask, min_size=100)
 
             # 3. Calculate Dice Score using MONAI metric
