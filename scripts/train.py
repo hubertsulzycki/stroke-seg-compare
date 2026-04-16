@@ -21,7 +21,6 @@ def main():
     LEARNING_RATE = 1e-4
     NUM_EPOCHS = 40
     NUM_WORKERS = 8
-    COMPILATION = True
     ACCUMULATION_STEPS = 4 if MODE == "3d" else 1
 
     # --- DEVICE CONFIGURATION ---
@@ -130,9 +129,6 @@ def main():
     else:
         raise ValueError("Invalid mode!")
 
-    # if COMPILATION and MODE != "3d":
-    #     model = torch.compile(model)
-
     # --- LOSS AND OPTIMIZER INITIALIZATION ---
     criterion = CombinedLoss()
     optimizer = optim.Adam(params=model.parameters(), lr=LEARNING_RATE)
@@ -150,7 +146,6 @@ def main():
         "NUM_EPOCHS": NUM_EPOCHS,
         "NUM_WORKERS": NUM_WORKERS,
         "DEVICE": device,
-        "COMPILED": COMPILATION and MODE != "3d",
         "AUTOMATIC MIXED PRECISION": True,
         "OPTIMIZER": optimizer.__class__.__name__,
         "ACCUMULATION_STEPS": ACCUMULATION_STEPS,

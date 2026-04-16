@@ -25,7 +25,6 @@ def main():
     MODEL_FILENAME = "unet_2d_16_04_2026_19_53.pth"
     BATCH_SIZE = 1
     NUM_WORKERS = 8
-    COMPILATION = True
 
     # --- DEVICE CONFIGURATION ---
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -99,9 +98,6 @@ def main():
     else:
         raise ValueError("Invalid mode!")
 
-    # Load weights and compile
-    # if COMPILATION and MODE != "3d":
-    #     model = torch.compile(model)
     model.load_state_dict(torch.load(model_dir / MODEL_FILENAME, weights_only=True))
 
     # --- EVALUATION ENGINE ---
