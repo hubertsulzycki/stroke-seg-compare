@@ -5,9 +5,8 @@ from torch.utils.data import DataLoader
 import monai.transforms as mt
 
 from src.data.dataset import StrokeDataset
-from src.models.unet_2d import UNet2D
-from src.models.unet_3d import UNet3D
 from src.evaluation.evaluator import Evaluator
+from monai.networks.nets import UNet
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -22,8 +21,8 @@ def log_message(message: str, filepath: Path):
 def main():
     print(PROJECT_ROOT)
     # --- MAIN CONFIGURATION ---
-    MODE = "3d"
-    MODEL_FILENAME = "unet_3d_14_04_2026_16_44.pth"
+    MODE = "2d"
+    MODEL_FILENAME = "unet_2d_16_04_2026_19_53.pth"
     BATCH_SIZE = 1
     NUM_WORKERS = 8
     COMPILATION = True
@@ -69,17 +68,40 @@ def main():
 
     # --- MODEL INITIALIZATION ---
     if MODE == "2d":
-        model = UNet2D(in_channels=1).to(device)
+        model = UNet(
+            spatial_dims=2,
+            in_channels=1,
+            out_channels=1,
+            channels=(32, 64, 128, 256, 512),
+            strides=(2, 2, 2, 2),
+            num_res_units=0,
+        ).to(device)
     elif MODE == "2.5d":
-        model = UNet2D(in_channels=3).to(device)
+        model = UNet(
+            spatial_dims=2,
+            in_channels=3,
+            out_channels=1,
+            channels=(32, 64, 128, 256, 512),
+            strides=(2, 2, 2, 2),
+            num_res_units=0,
+        ).to(device)
     elif MODE == "3d":
-        model = UNet3D(num_res_units=0).to(device)
+        model = UNet(
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=1,
+            channels=(32, 64, 128, 256, 512),
+            # Stride (1, 2, 2) ensures Z-axis (Depth) is not compressed,
+            # maintaining full resolution along the patient axis.
+            strides=((1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2)),
+            num_res_units=0,
+        ).to(device)
     else:
         raise ValueError("Invalid mode!")
 
     # Load weights and compile
-    if COMPILATION and MODE != "3d":
-        model = torch.compile(model)
+    # if COMPILATION and MODE != "3d":
+    #     model = torch.compile(model)
     model.load_state_dict(torch.load(model_dir / MODEL_FILENAME, weights_only=True))
 
     # --- EVALUATION ENGINE ---

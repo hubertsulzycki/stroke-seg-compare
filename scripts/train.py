@@ -6,9 +6,8 @@ import torch.optim as optim
 import datetime
 import monai.transforms as mt
 
+from monai.networks.nets import UNet
 from src.data.dataset import StrokeDataset
-from src.models.unet_2d import UNet2D
-from src.models.unet_3d import UNet3D
 from src.training.losses import CombinedLoss
 from src.training.trainer import Trainer
 
@@ -17,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     # --- MAIN CONFIGURATION ---
-    MODE = "3d"  # Available modes: '2d', '2.5d', '3d'
+    MODE = "2d"  # Available modes: '2d', '2.5d', '3d'
     BATCH_SIZE = 16 if MODE != "3d" else 1
     LEARNING_RATE = 1e-4
     NUM_EPOCHS = 40
@@ -100,16 +99,39 @@ def main():
 
     # --- MODEL INITIALIZATION ---
     if MODE == "2d":
-        model = UNet2D(in_channels=1).to(device)
+        model = UNet(
+            spatial_dims=2,
+            in_channels=1,
+            out_channels=1,
+            channels=(32, 64, 128, 256, 512),
+            strides=(2, 2, 2, 2),
+            num_res_units=0,
+        ).to(device)
     elif MODE == "2.5d":
-        model = UNet2D(in_channels=3).to(device)
+        model = UNet(
+            spatial_dims=2,
+            in_channels=3,
+            out_channels=1,
+            channels=(32, 64, 128, 256, 512),
+            strides=(2, 2, 2, 2),
+            num_res_units=0,
+        ).to(device)
     elif MODE == "3d":
-        model = UNet3D(num_res_units=0).to(device)
+        model = UNet(
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=1,
+            channels=(32, 64, 128, 256, 512),
+            # Stride (1, 2, 2) ensures Z-axis (Depth) is not compressed,
+            # maintaining full resolution along the patient axis.
+            strides=((1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2)),
+            num_res_units=0,
+        ).to(device)
     else:
         raise ValueError("Invalid mode!")
 
-    if COMPILATION and MODE != "3d":
-        model = torch.compile(model)
+    # if COMPILATION and MODE != "3d":
+    #     model = torch.compile(model)
 
     # --- LOSS AND OPTIMIZER INITIALIZATION ---
     criterion = CombinedLoss()

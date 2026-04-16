@@ -97,6 +97,12 @@ class Evaluator:
         """
         volume = volume.to(self.device)
         ground_truth = ground_truth.to(self.device)
+
+        # if hasattr(volume, "as_tensor"):
+        #     volume = volume.as_tensor()
+        # if hasattr(ground_truth, "as_tensor"):
+        #     ground_truth = ground_truth.as_tensor()
+
         mirror_volume = torch.flip(volume, dims=[-1])
 
         self.model.eval()
