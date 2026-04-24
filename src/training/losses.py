@@ -16,7 +16,7 @@ class CombinedLoss(nn.Module):
     def __init__(self):
         super().__init__()
         self.bce = nn.BCEWithLogitsLoss()
-        self.tversky = TverskyLoss(sigmoid=True, alpha=0.2, beta=0.8)
+        self.tversky = TverskyLoss(sigmoid=True, alpha=0.3, beta=0.7)
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         bce_loss = self.bce(logits, targets)

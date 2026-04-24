@@ -4,9 +4,10 @@ import torch
 from torch.utils.data import DataLoader
 import monai.transforms as mt
 
+from src.models.unet import unet
 from src.data.dataset import StrokeDataset
 from src.evaluation.evaluator import Evaluator
-from monai.networks.nets import UNet
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -21,8 +22,8 @@ def log_message(message: str, filepath: Path):
 def main():
     print(PROJECT_ROOT)
     # --- MAIN CONFIGURATION ---
-    MODE = "2d"
-    MODEL_FILENAME = "unet_2d_16_04_2026_19_53.pth"
+    MODE = "2dr"
+    MODEL_FILENAME = "unet_2dr_20_04_2026_21_09.pth"
     BATCH_SIZE = 1
     NUM_WORKERS = 8
 
@@ -66,36 +67,9 @@ def main():
     )
 
     # --- MODEL INITIALIZATION ---
-    if MODE == "2d":
-        model = UNet(
-            spatial_dims=2,
-            in_channels=1,
-            out_channels=1,
-            channels=(32, 64, 128, 256, 512),
-            strides=(2, 2, 2, 2),
-            num_res_units=0,
-        ).to(device)
-    elif MODE == "2.5d":
-        model = UNet(
-            spatial_dims=2,
-            in_channels=3,
-            out_channels=1,
-            channels=(32, 64, 128, 256, 512),
-            strides=(2, 2, 2, 2),
-            num_res_units=0,
-        ).to(device)
-    elif MODE == "3d":
-        model = UNet(
-            spatial_dims=3,
-            in_channels=1,
-            out_channels=1,
-            channels=(32, 64, 128, 256, 512),
-            # Stride (1, 2, 2) ensures Z-axis (Depth) is not compressed,
-            # maintaining full resolution along the patient axis.
-            strides=((1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2)),
-            num_res_units=0,
-        ).to(device)
-    else:
+    try:
+        model = unet[MODE].to(device)
+    except:
         raise ValueError("Invalid mode!")
 
     model.load_state_dict(torch.load(model_dir / MODEL_FILENAME, weights_only=True))

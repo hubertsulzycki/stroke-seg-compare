@@ -30,10 +30,10 @@ class Evaluator:
         predicted_slices = []
 
         for d in range(D):
-            if self.mode == "2d":
+            if self.mode in ["2d", "2dr"]:
                 slice_input = volume[:, :, d, :, :]
 
-            elif self.mode == "2.5d":
+            elif self.mode in ["2.5d", "2.5dr"]:
                 prev_idx = max(0, d - 1)
                 next_idx = min(D - 1, d + 1)
 
@@ -98,20 +98,15 @@ class Evaluator:
         volume = volume.to(self.device)
         ground_truth = ground_truth.to(self.device)
 
-        # if hasattr(volume, "as_tensor"):
-        #     volume = volume.as_tensor()
-        # if hasattr(ground_truth, "as_tensor"):
-        #     ground_truth = ground_truth.as_tensor()
-
         mirror_volume = torch.flip(volume, dims=[-1])
 
         self.model.eval()
 
         with torch.no_grad():
-            if self.mode in ["2d", "2.5d"]:
+            if self.mode in ["2d", "2dr", "2.5d", "2.5dr"]:
                 predictions = self._predict_2d_volume(volume)
                 mirror_predictions = self._predict_2d_volume(mirror_volume)
-            elif self.mode == "3d":
+            elif self.mode in ["3d", "3dr"]:
                 predictions = self._predict_3d_volume(volume)
                 mirror_predictions = self._predict_3d_volume(mirror_volume)
             else:

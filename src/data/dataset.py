@@ -22,9 +22,9 @@ class StrokeDataset(Dataset):
         self.mode = mode.lower()
         self.transform = transform
 
-        if self.mode not in ["2d", "2.5d", "3d"]:
+        if self.mode not in ["2d", "2dr", "2.5d", "2.5dr", "3d", "3dr"]:
             raise ValueError(
-                f"Unsupported mode: {self.mode}. Choose from '2d', '2.5d', '3d'."
+                f"Unsupported mode: {self.mode}. Choose from '2d', '2dr', '2.5d', '2.5dr', '3d', '3dr'."
             )
 
         self.samples = self._prepare_samples()
@@ -47,7 +47,7 @@ class StrokeDataset(Dataset):
                 [f.name for f in patient_img_dir.iterdir() if f.suffix == ".png"]
             )
 
-            if self.mode == "2d":
+            if self.mode in ["2d", "2dr"]:
                 # In 2D, every single slice is a distinct sample
                 for slice_name in slices:
                     samples.append(
@@ -59,7 +59,7 @@ class StrokeDataset(Dataset):
                         }
                     )
 
-            elif self.mode == "2.5d":
+            elif self.mode in ["2.5d", "2.5dr"]:
                 # In 2.5D, each sample consist of z-1, z and z+1 slices
                 # Usage of max() and min() handles border cases
                 for i, slice_name in enumerate(slices):
@@ -76,7 +76,7 @@ class StrokeDataset(Dataset):
                         }
                     )
 
-            elif self.mode == "3d":
+            elif self.mode in ["3d", "3dr"]:
                 # In 3D, all slices are used as one sample
                 samples.append(
                     {
@@ -107,7 +107,7 @@ class StrokeDataset(Dataset):
     def __getitem__(self, idx: int) -> dict:
         sample_info = self.samples[idx]
 
-        if self.mode == "2d":
+        if self.mode in ["2d", "2dr"]:
             # Load image and mask
             img = np.array(
                 Image.open(sample_info["img_path"]).convert("L"), dtype=np.float32
@@ -139,7 +139,7 @@ class StrokeDataset(Dataset):
 
             return item
 
-        elif self.mode == "2.5d":
+        elif self.mode in ["2.5d", "2.5dr"]:
             # Load 3 adjacent slices and mask
             img_prev = np.array(
                 Image.open(sample_info["img_path_prev"]).convert("L"),
@@ -180,7 +180,7 @@ class StrokeDataset(Dataset):
 
             return item
 
-        elif self.mode == "3d":
+        elif self.mode in ["3d", "3dr"]:
             patient_img_path = sample_info["patient_img_path"]
             patient_mask_path = sample_info["patient_mask_path"]
 

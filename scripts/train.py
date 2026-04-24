@@ -1,12 +1,12 @@
 import json
-from pathlib import Path
 import torch
-from torch.utils.data import DataLoader
 import torch.optim as optim
 import datetime
 import monai.transforms as mt
 
-from monai.networks.nets import UNet
+from pathlib import Path
+from torch.utils.data import DataLoader
+from src.models.unet import unet
 from src.data.dataset import StrokeDataset
 from src.training.losses import CombinedLoss
 from src.training.trainer import Trainer
@@ -16,10 +16,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     # --- MAIN CONFIGURATION ---
-    MODE = "2d"  # Available modes: '2d', '2.5d', '3d'
-    BATCH_SIZE = 16 if MODE != "3d" else 1
+    MODE = "2dr"  # Available modes: '2d', '2.5d', '3d'
+    BATCH_SIZE = 48 if MODE not in ["3d", "3dr"] else 1
     LEARNING_RATE = 1e-4
-    NUM_EPOCHS = 40
+    NUM_EPOCHS = 80
     NUM_WORKERS = 8
     ACCUMULATION_STEPS = 4 if MODE == "3d" else 1
 
@@ -97,36 +97,9 @@ def main():
     )
 
     # --- MODEL INITIALIZATION ---
-    if MODE == "2d":
-        model = UNet(
-            spatial_dims=2,
-            in_channels=1,
-            out_channels=1,
-            channels=(32, 64, 128, 256, 512),
-            strides=(2, 2, 2, 2),
-            num_res_units=0,
-        ).to(device)
-    elif MODE == "2.5d":
-        model = UNet(
-            spatial_dims=2,
-            in_channels=3,
-            out_channels=1,
-            channels=(32, 64, 128, 256, 512),
-            strides=(2, 2, 2, 2),
-            num_res_units=0,
-        ).to(device)
-    elif MODE == "3d":
-        model = UNet(
-            spatial_dims=3,
-            in_channels=1,
-            out_channels=1,
-            channels=(32, 64, 128, 256, 512),
-            # Stride (1, 2, 2) ensures Z-axis (Depth) is not compressed,
-            # maintaining full resolution along the patient axis.
-            strides=((1, 2, 2), (1, 2, 2), (1, 2, 2), (1, 2, 2)),
-            num_res_units=0,
-        ).to(device)
-    else:
+    try:
+        model = unet[MODE].to(device)
+    except:
         raise ValueError("Invalid mode!")
 
     # --- LOSS AND OPTIMIZER INITIALIZATION ---
