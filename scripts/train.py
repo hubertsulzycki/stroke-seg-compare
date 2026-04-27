@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     # --- MAIN CONFIGURATION ---
-    MODE = "2dr"  # Available modes: '2d', '2.5d', '3d'
+    MODE = "2dr"  # Available modes: '2d', '2dr', '2.5d', '2.5dr', '3d', '3dr'
     BATCH_SIZE = 48 if MODE not in ["3d", "3dr"] else 1
     LEARNING_RATE = 1e-4
     NUM_EPOCHS = 80

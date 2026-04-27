@@ -83,12 +83,6 @@ class Trainer:
                 inputs = batch["image"].to(self.device, non_blocking=True)
                 targets = batch["label"].float().to(self.device, non_blocking=True)
 
-                # Strip MetaTensor wrapper to prevent torch.compile graph breaks
-                # if hasattr(inputs, "as_tensor"):
-                #     inputs = inputs.as_tensor()
-                # if hasattr(targets, "as_tensor"):
-                #     targets = targets.as_tensor()
-
                 with torch.autocast(device_type=self.device, dtype=torch.float16):
                     outputs = self.model(inputs)
                     loss = self.criterion(outputs, targets)
