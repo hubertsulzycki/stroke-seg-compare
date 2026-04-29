@@ -7,19 +7,23 @@ import monai.transforms as mt
 from pathlib import Path
 from torch.utils.data import DataLoader
 from src.models.unet import unet
+from src.models.attention_unet import attention_unet
+from src.models.segresnet import segresnet
 from src.data.dataset import StrokeDataset
 from src.training.losses import CombinedLoss
 from src.training.trainer import Trainer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+MODELS = {"unet": unet, "attention_unet": attention_unet, "segresnet": segresnet}
 
 
 def main():
     # --- MAIN CONFIGURATION ---
-    MODE = "2dr"  # Available modes: '2d', '2dr', '2.5d', '2.5dr', '3d', '3dr'
-    BATCH_SIZE = 48 if MODE not in ["3d", "3dr"] else 1
+    ARCHITECTURE = "attention_unet"
+    MODE = "2d"  # Available modes: '2d', '2dr', '2.5d', and '2.5dr', '3d', '3dr' fo normal UNET
+    BATCH_SIZE = 8 if MODE not in ["3d", "3dr"] else 1
     LEARNING_RATE = 1e-4
-    NUM_EPOCHS = 80
+    NUM_EPOCHS = 5
     NUM_WORKERS = 8
     ACCUMULATION_STEPS = 4 if MODE == "3d" else 1
 
@@ -29,7 +33,7 @@ def main():
 
     # --- TIMESTAMP & FILENAMES ---
     timestamp = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M")
-    best_model_filename = f"unet_{MODE}_{timestamp}.pth"
+    best_model_filename = f"{ARCHITECTURE}_{MODE}_{timestamp}.pth"
 
     # --- DATA PREPARATION ---
     data_dir = PROJECT_ROOT / "data"
@@ -42,12 +46,17 @@ def main():
     train_patients = splits["train"]
     val_patients = splits["val"]
 
+    segresnet_pad = []
+    if ARCHITECTURE == "segresnet" and MODE == "3d":
+        segresnet_pad = [mt.DivisiblePadd(keys=["image", "label"], k=16)]
+
     # --- TRANSORMS CONFIGURATION ---
     train_transforms = mt.Compose(
         [
             mt.ScaleIntensityRanged(
                 keys=["image"], a_min=0.0, a_max=255.0, b_min=0.0, b_max=1.0, clip=True
             ),
+            *segresnet_pad,  # Conditional padding for SegResNet 3D
             mt.RandFlipd(keys=["image", "label"], spatial_axis=-1, prob=0.5),
             mt.RandRotated(
                 keys=["image", "label"],
@@ -65,6 +74,7 @@ def main():
             mt.ScaleIntensityRanged(
                 keys=["image"], a_min=0.0, a_max=255.0, b_min=0.0, b_max=1.0, clip=True
             ),
+            *segresnet_pad,  # Conditional padding for SegResNet 3D
         ]
     )
 
@@ -98,7 +108,7 @@ def main():
 
     # --- MODEL INITIALIZATION ---
     try:
-        model = unet[MODE].to(device)
+        model = MODELS[ARCHITECTURE][MODE].to(device)
     except:
         raise ValueError("Invalid mode!")
 
@@ -113,6 +123,7 @@ def main():
 
     # --- EXPERIMENT CONFIGURATION (For Logging) ---
     experiment_config = {
+        "ARCHITECTURE": ARCHITECTURE,
         "MODE": MODE,
         "BATCH_SIZE": BATCH_SIZE,
         "LEARNING_RATE": LEARNING_RATE,

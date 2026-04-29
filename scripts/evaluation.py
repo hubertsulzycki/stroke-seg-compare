@@ -5,11 +5,13 @@ from torch.utils.data import DataLoader
 import monai.transforms as mt
 
 from src.models.unet import unet
+from src.models.attention_unet import attention_unet
+from src.models.segresnet import segresnet
 from src.data.dataset import StrokeDataset
 from src.evaluation.evaluator import Evaluator
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+MODELS = {"unet": unet, "attention_unet": attention_unet, "segresnet": segresnet}
 
 
 def log_message(message: str, filepath: Path):
@@ -22,7 +24,8 @@ def log_message(message: str, filepath: Path):
 def main():
     print(PROJECT_ROOT)
     # --- MAIN CONFIGURATION ---
-    MODE = "2dr"
+    ARCHITECTURE = "attention_unet"
+    MODE = "2d"
     MODEL_FILENAME = "unet_2dr_20_04_2026_21_09.pth"
     BATCH_SIZE = 1
     NUM_WORKERS = 8
@@ -68,17 +71,20 @@ def main():
 
     # --- MODEL INITIALIZATION ---
     try:
-        model = unet[MODE].to(device)
+        model = MODELS[ARCHITECTURE][MODE].to(device)
     except:
         raise ValueError("Invalid mode!")
 
     model.load_state_dict(torch.load(model_dir / MODEL_FILENAME, weights_only=True))
 
     # --- EVALUATION ENGINE ---
-    evaluator = Evaluator(model=model, device=device, mode=MODE)
+    evaluator = Evaluator(
+        architecture=ARCHITECTURE, model=model, device=device, mode=MODE
+    )
 
     log_message("=" * 50, log_filepath)
     log_message("--- STARTING EVALUATION ---", log_filepath)
+    log_message(f"Architecture  : {ARCHITECTURE}", log_filepath)
     log_message(f"Model File    : {MODEL_FILENAME}", log_filepath)
     log_message(f"Mode          : {MODE.upper()}", log_filepath)
     log_message(f"Test Patients : {len(test_patients)}", log_filepath)

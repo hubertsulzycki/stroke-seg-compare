@@ -14,8 +14,9 @@ class Evaluator:
     before calculating the final Volume Dice Score.
     """
 
-    def __init__(self, model: nn.Module, device: str, mode: str):
+    def __init__(self, architecture: str, model: nn.Module, device: str, mode: str):
         super().__init__()
+        self.architecture = architecture
         self.model = model
         self.device = device
         self.mode = mode
@@ -55,7 +56,19 @@ class Evaluator:
         """
         Takes a 3D volume and processes it directly through a 3D model.
         """
-        pred_volume = self.model(volume)
+        B, C, D, H, W = volume.shape
+        pad_d = (16 - (D % 16)) % 16
+
+        if self.architecture == "segresnet":
+            if pad_d > 0:
+                volume = F.pad(volume, (0, 0, 0, 0, 0, pad_d))
+
+            pred_volume = self.model(volume)
+
+            if pad_d > 0:
+                pred_volume = pred_volume[:, :, :D, :, :]
+        else:
+            pred_volume = self.model(volume)
 
         return pred_volume
 
