@@ -59,7 +59,7 @@ class Evaluator:
         B, C, D, H, W = volume.shape
         pad_d = (16 - (D % 16)) % 16
 
-        if self.architecture == "segresnet":
+        if self.architecture in ["segresnet", "vnet"]:
             if pad_d > 0:
                 volume = F.pad(volume, (0, 0, 0, 0, 0, pad_d))
 

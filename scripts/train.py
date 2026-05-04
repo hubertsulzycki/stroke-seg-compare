@@ -9,17 +9,25 @@ from torch.utils.data import DataLoader
 from src.models.unet import unet
 from src.models.attention_unet import attention_unet
 from src.models.segresnet import segresnet
+from src.models.vnet import vnet
+from src.models.swin_unetr import swin_unetr
 from src.data.dataset import StrokeDataset
 from src.training.losses import CombinedLoss
 from src.training.trainer import Trainer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MODELS = {"unet": unet, "attention_unet": attention_unet, "segresnet": segresnet}
+MODELS = {
+    "unet": unet,
+    "attention_unet": attention_unet,
+    "segresnet": segresnet,
+    "vnet": vnet,
+    "swin_unetr": swin_unetr,
+}
 
 
 def main():
     # --- MAIN CONFIGURATION ---
-    ARCHITECTURE = "attention_unet"
+    ARCHITECTURE = "swin_unetr"
     MODE = "2d"  # Available modes: '2d', '2dr', '2.5d', and '2.5dr', '3d', '3dr' fo normal UNET
     BATCH_SIZE = 8 if MODE not in ["3d", "3dr"] else 1
     LEARNING_RATE = 1e-4
@@ -46,9 +54,9 @@ def main():
     train_patients = splits["train"]
     val_patients = splits["val"]
 
-    segresnet_pad = []
-    if ARCHITECTURE == "segresnet" and MODE == "3d":
-        segresnet_pad = [mt.DivisiblePadd(keys=["image", "label"], k=16)]
+    pad_transform = []
+    if ARCHITECTURE in ["segresnet", "vnet"] and MODE == "3d":
+        pad_transform = [mt.DivisiblePadd(keys=["image", "label"], k=16)]
 
     # --- TRANSORMS CONFIGURATION ---
     train_transforms = mt.Compose(
@@ -56,7 +64,7 @@ def main():
             mt.ScaleIntensityRanged(
                 keys=["image"], a_min=0.0, a_max=255.0, b_min=0.0, b_max=1.0, clip=True
             ),
-            *segresnet_pad,  # Conditional padding for SegResNet 3D
+            *pad_transform,  # Conditional padding for SegResNet and VNet 3D
             mt.RandFlipd(keys=["image", "label"], spatial_axis=-1, prob=0.5),
             mt.RandRotated(
                 keys=["image", "label"],
@@ -74,7 +82,7 @@ def main():
             mt.ScaleIntensityRanged(
                 keys=["image"], a_min=0.0, a_max=255.0, b_min=0.0, b_max=1.0, clip=True
             ),
-            *segresnet_pad,  # Conditional padding for SegResNet 3D
+            *pad_transform,  # Conditional padding for SegResNet and VNet 3D
         ]
     )
 

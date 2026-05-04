@@ -7,11 +7,17 @@ import monai.transforms as mt
 from src.models.unet import unet
 from src.models.attention_unet import attention_unet
 from src.models.segresnet import segresnet
+from src.models.vnet import vnet
 from src.data.dataset import StrokeDataset
 from src.evaluation.evaluator import Evaluator
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-MODELS = {"unet": unet, "attention_unet": attention_unet, "segresnet": segresnet}
+MODELS = {
+    "unet": unet,
+    "attention_unet": attention_unet,
+    "segresnet": segresnet,
+    "vnet": vnet,
+}
 
 
 def log_message(message: str, filepath: Path):
