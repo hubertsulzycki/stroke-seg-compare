@@ -1,21 +1,6 @@
-# Deep Learning
-torch>=2.0.0
-torchvision
-torchaudio
-monai
-
-# Data Manipulation & Metrics
-numpy
-pandas
-scikit-learn
-
-# Image Processing
-Pillow
-imageio
-
-# Utilities
-einops
-pyyaml
-tqdm
-matplotlib
-tensorboard
+monai==1.5.2
+numpy==2.4.6
+Pillow==12.2.0
+scikit_learn==1.9.0
+scipy==1.18.0
+torch>=2.10.0

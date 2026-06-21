@@ -28,12 +28,12 @@ MODELS = {
 def main():
     # --- MAIN CONFIGURATION ---
     ARCHITECTURE = "vnet"
-    MODE = "3d"  # Available modes: '2d', '2dr', '2.5d', and '2.5dr', '3d', '3dr' fo normal UNET
+    MODE = "3d"  # Available modes: '2d', '2.5d' '3d', and '2dr', '2.5dr', '3dr' for UNET with residual units
     BATCH_SIZE = 8 if MODE not in ["3d", "3dr"] else 1
     LEARNING_RATE = 1e-4
     NUM_EPOCHS = 100
     NUM_WORKERS = 8
-    ACCUMULATION_STEPS = 4 if MODE in ["3d","3dr"] else 1
+    ACCUMULATION_STEPS = 4 if MODE in ["3d", "3dr"] else 1
 
     # --- DEVICE CONFIGURATION ---
     torch.backends.cudnn.benchmark = MODE != "3d"
