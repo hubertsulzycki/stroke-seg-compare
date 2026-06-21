@@ -1,22 +1,25 @@
 import json
-from pathlib import Path
+import math
 import torch
-from torch.utils.data import DataLoader
 import monai.transforms as mt
 
+from torch.utils.data import DataLoader
+from pathlib import Path
 from src.models.unet import unet
 from src.models.attention_unet import attention_unet
 from src.models.segresnet import segresnet
 from src.models.vnet import vnet
+from src.models.swin_unetr import swin_unetr
 from src.data.dataset import StrokeDataset
 from src.evaluation.evaluator import Evaluator
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODELS = {
     "unet": unet,
     "attention_unet": attention_unet,
     "segresnet": segresnet,
     "vnet": vnet,
+    "swin_unetr": swin_unetr,
 }
 
 
@@ -30,9 +33,9 @@ def log_message(message: str, filepath: Path):
 def main():
     print(PROJECT_ROOT)
     # --- MAIN CONFIGURATION ---
-    ARCHITECTURE = "attention_unet"
-    MODE = "2d"
-    MODEL_FILENAME = "unet_2dr_20_04_2026_21_09.pth"
+    ARCHITECTURE = "vnet"
+    MODE = "3d"
+    MODEL_FILENAME = "vnet_3d_14_06_2026_17_10.pth"
     BATCH_SIZE = 1
     NUM_WORKERS = 8
 
@@ -96,27 +99,44 @@ def main():
     log_message(f"Test Patients : {len(test_patients)}", log_filepath)
     log_message("=" * 50 + "\n", log_filepath)
 
-    all_dice_scores = []
+    all_metrics = {"dice": [], "hd95": [], "sensitivity": [], "precision": []}
 
     for i, batch in enumerate(test_loader):
         volume = batch["image"]
         ground_truth = batch["label"]
 
-        patient_dice = evaluator.evaluate_patient(
+        patient_metrics = evaluator.evaluate_patient(
             volume=volume, ground_truth=ground_truth
         )
-        all_dice_scores.append(patient_dice)
+
+        all_metrics["dice"].append(patient_metrics["dice"])
+        all_metrics["hd95"].append(patient_metrics["hd95"])
+        all_metrics["sensitivity"].append(patient_metrics["sensitivity"])
+        all_metrics["precision"].append(patient_metrics["precision"])
 
         log_message(
-            f"Patient {i+1:03d}/{len(test_loader):03d} - Volume Dice: {patient_dice:.4f}",
+            f"Patient {i+1:03d}/{len(test_loader):03d} - "
+            f"Dice: {patient_metrics['dice']:.4f} | "
+            f"HD95: {patient_metrics['hd95']:.4f} | "
+            f"Sens: {patient_metrics['sensitivity']:.4f} | "
+            f"Prec: {patient_metrics['precision']:.4f}",
             log_filepath,
         )
 
-    mean_dice = sum(all_dice_scores) / len(all_dice_scores)
+    mean_dice = sum(all_metrics["dice"]) / len(all_metrics["dice"])
+
+    valid_hd95 = [x for x in all_metrics["hd95"] if not math.isnan(x)]
+    mean_hd95 = sum(valid_hd95) / len(valid_hd95) if valid_hd95 else float("nan")
+
+    mean_sensitivity = sum(all_metrics["sensitivity"]) / len(all_metrics["sensitivity"])
+    mean_precision = sum(all_metrics["precision"]) / len(all_metrics["precision"])
 
     log_message("\n" + "=" * 50, log_filepath)
-    log_message(f"FINAL MODEL SCORE ({MODE.upper()}):", log_filepath)
-    log_message(f"Mean Volume Dice Score on Test Set: {mean_dice:.4f}", log_filepath)
+    log_message(f"FINAL MODEL SCORES ({MODE.upper()}):", log_filepath)
+    log_message(f"Mean Volume Dice   : {mean_dice:.4f}", log_filepath)
+    log_message(f"Mean HD95          : {mean_hd95:.4f}", log_filepath)
+    log_message(f"Mean Sensitivity   : {mean_sensitivity:.4f}", log_filepath)
+    log_message(f"Mean Precision     : {mean_precision:.4f}", log_filepath)
     log_message("=" * 50, log_filepath)
 
 

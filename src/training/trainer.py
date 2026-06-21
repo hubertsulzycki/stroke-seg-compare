@@ -7,6 +7,7 @@ from pathlib import Path
 
 SAVE_DIR = Path(__file__).resolve().parents[2] / "trained_models"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
+AMP_DTYPE = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
 
 
 class Trainer:
@@ -83,9 +84,10 @@ class Trainer:
                 inputs = batch["image"].to(self.device, non_blocking=True)
                 targets = batch["label"].float().to(self.device, non_blocking=True)
 
-                with torch.autocast(device_type=self.device, dtype=torch.float16):
+                with torch.autocast(device_type=self.device, dtype=AMP_DTYPE):
                     outputs = self.model(inputs)
-                    loss = self.criterion(outputs, targets)
+
+                loss = self.criterion(outputs, targets)
 
                 unscaled_loss = loss.item()
                 loss = loss / self.accumulation_steps
@@ -94,6 +96,11 @@ class Trainer:
                 if ((i + 1) % self.accumulation_steps == 0) or (
                     (i + 1) == len(self.train_loader)
                 ):
+                    self.scaler.unscale_(self.optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=1.0
+                    )
+
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
                     self.optimizer.zero_grad(set_to_none=True)
@@ -119,9 +126,10 @@ class Trainer:
                     inputs = batch["image"].to(self.device, non_blocking=True)
                     targets = batch["label"].float().to(self.device, non_blocking=True)
 
-                    with torch.autocast(device_type=self.device, dtype=torch.float16):
+                    with torch.autocast(device_type=self.device, dtype=AMP_DTYPE):
                         outputs = self.model(inputs)
-                        loss = self.criterion(outputs, targets)
+
+                    loss = self.criterion(outputs, targets)
 
                     val_loss += loss.item()
 

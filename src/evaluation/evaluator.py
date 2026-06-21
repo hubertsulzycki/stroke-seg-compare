@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from monai.metrics import DiceMetric
+from monai.metrics import DiceMetric, HausdorffDistanceMetric, ConfusionMatrixMetric
 import torch.nn.functional as F
 
 import numpy as np
@@ -20,7 +20,17 @@ class Evaluator:
         self.model = model
         self.device = device
         self.mode = mode
+
+        # --- METRICS INITIALIZATION ---
         self.dice_metric = DiceMetric(include_background=False, reduction="mean")
+        self.hd95_metric = HausdorffDistanceMetric(
+            percentile=95, include_background=False, reduction="mean"
+        )
+        self.conf_matrix = ConfusionMatrixMetric(
+            metric_name=["sensitivity", "precision"],
+            include_background=False,
+            reduction="mean",
+        )
 
     def _predict_2d_volume(self, volume: torch.Tensor) -> torch.Tensor:
         """
@@ -57,18 +67,22 @@ class Evaluator:
         Takes a 3D volume and processes it directly through a 3D model.
         """
         B, C, D, H, W = volume.shape
-        pad_d = (16 - (D % 16)) % 16
 
-        if self.architecture in ["segresnet", "vnet"]:
-            if pad_d > 0:
-                volume = F.pad(volume, (0, 0, 0, 0, 0, pad_d))
+        k = 1
+        if self.architecture == "swin_unetr":
+            k = 32
+        elif self.architecture in ["segresnet", "vnet"]:
+            k = 16
 
-            pred_volume = self.model(volume)
+        pad_d = (k - (D % k)) % k
 
-            if pad_d > 0:
-                pred_volume = pred_volume[:, :, :D, :, :]
-        else:
-            pred_volume = self.model(volume)
+        if pad_d > 0:
+            volume = F.pad(volume, (0, 0, 0, 0, 0, pad_d))
+
+        pred_volume = self.model(volume)
+
+        if pad_d > 0:
+            pred_volume = pred_volume[:, :, :D, :, :]
 
         return pred_volume
 
@@ -134,13 +148,35 @@ class Evaluator:
             binary_mask = (final_probs > 0.5).float()
             binary_mask = self._apply_cca_filtering(binary_mask, min_size=100)
 
-            # 3. Calculate Dice Score using MONAI metric
+            # 3. Calculate Metrics using MONAI
             self.dice_metric(y_pred=binary_mask, y=ground_truth)
+            self.hd95_metric(y_pred=binary_mask, y=ground_truth)
+            self.conf_matrix(y_pred=binary_mask, y=ground_truth)
 
-            # 4. Extract the actual scalar value
+            # 4. Extract the actual scalar values
             dice_score = self.dice_metric.aggregate().item()
 
-            # 5. Reset metric for the next patient
+            # HD95 can return 'inf' if the predicted mask is completely empty.
+            hd95_tensor = self.hd95_metric.aggregate()
+            hd95_score = (
+                hd95_tensor.item() if not torch.isinf(hd95_tensor) else float("nan")
+            )
+
+            # Confusion Matrix returns a list of tensors when multiple metrics are requested
+            conf_metrics = self.conf_matrix.aggregate()
+            sensitivity_score = conf_metrics[0].item()
+            precision_score = conf_metrics[1].item()
+
+            # 5. Reset metrics for the next patient
             self.dice_metric.reset()
+            self.hd95_metric.reset()
+            self.conf_matrix.reset()
+
+        return {
+            "dice": dice_score,
+            "hd95": hd95_score,
+            "sensitivity": sensitivity_score,
+            "precision": precision_score,
+        }
 
         return dice_score

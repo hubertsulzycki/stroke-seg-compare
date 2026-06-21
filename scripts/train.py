@@ -27,13 +27,13 @@ MODELS = {
 
 def main():
     # --- MAIN CONFIGURATION ---
-    ARCHITECTURE = "swin_unetr"
-    MODE = "2d"  # Available modes: '2d', '2dr', '2.5d', and '2.5dr', '3d', '3dr' fo normal UNET
+    ARCHITECTURE = "vnet"
+    MODE = "3d"  # Available modes: '2d', '2dr', '2.5d', and '2.5dr', '3d', '3dr' fo normal UNET
     BATCH_SIZE = 8 if MODE not in ["3d", "3dr"] else 1
     LEARNING_RATE = 1e-4
-    NUM_EPOCHS = 5
+    NUM_EPOCHS = 100
     NUM_WORKERS = 8
-    ACCUMULATION_STEPS = 4 if MODE == "3d" else 1
+    ACCUMULATION_STEPS = 4 if MODE in ["3d","3dr"] else 1
 
     # --- DEVICE CONFIGURATION ---
     torch.backends.cudnn.benchmark = MODE != "3d"
@@ -55,8 +55,11 @@ def main():
     val_patients = splits["val"]
 
     pad_transform = []
-    if ARCHITECTURE in ["segresnet", "vnet"] and MODE == "3d":
-        pad_transform = [mt.DivisiblePadd(keys=["image", "label"], k=16)]
+    if MODE == "3d":
+        if ARCHITECTURE in ["segresnet", "vnet"]:
+            pad_transform = [mt.DivisiblePadd(keys=["image", "label"], k=16)]
+        elif ARCHITECTURE == "swin_unetr":
+            pad_transform = [mt.DivisiblePadd(keys=["image", "label"], k=32)]
 
     # --- TRANSORMS CONFIGURATION ---
     train_transforms = mt.Compose(

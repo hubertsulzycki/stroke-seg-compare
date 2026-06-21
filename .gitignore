@@ -14,6 +14,8 @@ __pycache__/
 
 structure.txt
 
-/backup
+/additional_scripts
+/slurm_scripts
+/plots
 trained_models/
-logs/
+evaluations/
